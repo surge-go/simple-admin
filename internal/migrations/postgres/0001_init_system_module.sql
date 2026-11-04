@@ -305,6 +305,7 @@ CREATE TABLE sys_user (
     last_login_at TIMESTAMP,
     last_login_ip VARCHAR(128),
     locked_until TIMESTAMP,
+    auth_version BIGINT NOT NULL DEFAULT 1,
     remark VARCHAR(255),
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP,
@@ -340,6 +341,10 @@ WHERE
     locked_until IS NOT NULL
     AND deleted_at IS NULL;
 
+CREATE INDEX idx_sys_user_auth_version ON sys_user (auth_version)
+WHERE
+    deleted_at IS NULL;
+
 -- 添加表注释
 COMMENT ON TABLE sys_user IS '用户表';
 
@@ -357,6 +362,7 @@ COMMENT ON COLUMN sys_user.status IS '状态：1-正常 0-禁用';
 COMMENT ON COLUMN sys_user.last_login_at IS '最后登录时间';
 COMMENT ON COLUMN sys_user.last_login_ip IS '最后登录IP地址';
 COMMENT ON COLUMN sys_user.locked_until IS '账号锁定截止时间，NULL表示未锁定，超过此时间自动解锁';
+COMMENT ON COLUMN sys_user.auth_version IS '认证版本号，用于使现有凭证失效';
 COMMENT ON COLUMN sys_user.remark IS '备注说明';
 COMMENT ON COLUMN sys_user.created_at IS '创建时间';
 COMMENT ON COLUMN sys_user.updated_at IS '更新时间';
@@ -365,6 +371,48 @@ COMMENT ON COLUMN sys_user.deleted_at IS '软删除时间';
 -- 创建触发器：自动更新 sys_user 的 updated_at
 CREATE TRIGGER trg_sys_user_update_timestamp
     BEFORE UPDATE ON sys_user
+    FOR EACH ROW
+    EXECUTE FUNCTION update_updated_at_column();
+
+-- 创建系统配置表
+CREATE TABLE sys_config (
+    id BIGSERIAL PRIMARY KEY,
+    key VARCHAR(128) NOT NULL,
+    name VARCHAR(128) NOT NULL,
+    group_name VARCHAR(64) NOT NULL,
+    value JSONB NOT NULL,
+    version INTEGER NOT NULL DEFAULT 1,
+    remark VARCHAR(255) NOT NULL DEFAULT '',
+    updated_by BIGINT,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP,
+    CONSTRAINT chk_sys_config_version CHECK (version > 0),
+    CONSTRAINT fk_sys_config_updated_by FOREIGN KEY (updated_by) REFERENCES sys_user (id) ON DELETE SET NULL ON UPDATE RESTRICT
+);
+
+-- 创建索引
+CREATE UNIQUE INDEX idx_sys_config_key ON sys_config (key);
+CREATE INDEX idx_sys_config_group_name ON sys_config (group_name);
+CREATE INDEX idx_sys_config_updated_by ON sys_config (updated_by);
+
+-- 添加表注释
+COMMENT ON TABLE sys_config IS '系统配置表';
+
+-- 添加字段注释
+COMMENT ON COLUMN sys_config.id IS '主键ID';
+COMMENT ON COLUMN sys_config.key IS '配置键，全局唯一标识';
+COMMENT ON COLUMN sys_config.name IS '配置名称';
+COMMENT ON COLUMN sys_config.group_name IS '配置分组';
+COMMENT ON COLUMN sys_config.value IS '配置值，JSON格式';
+COMMENT ON COLUMN sys_config.version IS '配置版本号，用于并发更新检查';
+COMMENT ON COLUMN sys_config.remark IS '备注说明';
+COMMENT ON COLUMN sys_config.updated_by IS '最后修改人用户ID';
+COMMENT ON COLUMN sys_config.created_at IS '创建时间';
+COMMENT ON COLUMN sys_config.updated_at IS '最后更新时间';
+
+-- 创建触发器：自动更新 sys_config 的 updated_at
+CREATE TRIGGER trg_sys_config_update_timestamp
+    BEFORE UPDATE ON sys_config
     FOR EACH ROW
     EXECUTE FUNCTION update_updated_at_column();
 
