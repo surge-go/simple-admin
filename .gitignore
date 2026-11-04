@@ -1,0 +1,19 @@
+# Go build and test artifacts
+/bin/
+/dist/
+*.exe
+*.test
+*.out
+coverage.*
+
+# Local environment configuration
+.env
+.env.*
+!.env.example
+
+# IDE and editor files
+.idea/
+.vscode/
+
+# OS metadata
+.DS_Store
